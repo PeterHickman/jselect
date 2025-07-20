@@ -1,0 +1,705 @@
+#!/usr/bin/env ruby
+
+require 'json'
+
+class QueryResolver
+  def self.resolve(data, list)
+    l = []
+
+    list.each do |orig|
+      item = orig.clone
+
+      if item.type == :operand && item.subtype == :query
+        v, r = burrow(data, *item.value[1..].split('.'))
+
+        item.success = r
+        item.value = v
+
+        item.subtype = define_subtype(v)
+
+        l << item
+      else
+        l << item
+      end
+    end
+
+    l
+  end
+
+  def self.burrow(data, *keys)
+    return [data, true] if keys.size.zero?
+
+    if data.key?(*keys.first)
+      burrow(data[*keys.first], *keys[1..])
+    else
+      [nil, false]
+    end
+  end
+
+  def self.define_subtype(v)
+    klass = v.class
+
+    if Float == klass
+      :float
+    elsif Integer == klass
+      :integer
+    elsif TrueClass == klass
+      :true
+    elsif FalseClass == klass
+      :false
+    elsif NilClass == klass
+      :null
+    elsif String == klass
+      :string
+    end
+  end
+end
+
+class Runner
+  def self.run(code)
+    stack = []
+
+    code.each do |op|
+      case op.type
+      when :operand
+        if op.subtype == :query
+          raise "Operand subtype :query unresolved #{op}"
+        end
+
+        stack << op
+      when :operator
+        case op.value
+        when '+'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value + f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '-'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value - f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '/'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value / f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '*'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value * f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '^'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value ** f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '>'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value > f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '>='
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value >= f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '<'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value < f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '<='
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value <= f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '='
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value == f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '!='
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && compatible_types(f, s)
+            r = s.value != f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '&&'
+          f = stack.pop
+          s = stack.pop
+
+          if no_problem_so_far(f, s) && bool_types(f, s)
+            r = s.value && f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when '||'
+          f = stack.pop
+          s = stack.pop
+
+          # There is a special case here where one operand fails
+          # but the other succeeds and evaluates to true then this
+          # can return true and if everything has failed return false
+          if bool_types(f, s, [:true, :false, :error])
+            r = if f.success
+                  f.value
+                elsif s.success
+                  s.value
+                else
+                  false
+                end
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        when 'neg' # The only unary operator (so far)
+          f = stack.pop
+
+          if f.success && number_type(f)
+            r = -1 * f.value
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+          else
+            stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
+          end
+        else
+          raise "Unknown operator #{op}"
+        end
+      else
+        raise "Unknown type #{op}"
+      end
+    end
+
+    raise "Stack should have one element not #{stack.size}" unless stack.size == 1
+
+    [stack[0].success, stack[0].value]
+  end
+
+  def self.sym_of(value)
+    if value.kind_of?(TrueClass)
+      :true
+    elsif value.kind_of?(FalseClass)
+      :false
+    elsif value.kind_of?(Integer)
+      :integer
+    elsif value.kind_of?(Float)
+      :float
+    elsif value.kind_of?(NilClass)
+      :null
+    else
+      raise "Unknown sym_of #{value.class}"
+    end
+  end
+
+  def self.bool_types(a, b, list = [:true, :false])
+    list.include?(a.subtype) && list.include?(b.subtype)
+  end
+
+  def self.number_type(a)
+    [:integer, :float].include?(a.subtype)
+  end
+
+  def self.compatible_types(a, b)
+    return true if a.subtype == b.subtype
+
+    return true if number_type(a) && number_type(b)
+
+    return true if bool_types(a, b)
+
+    raise "Incompatible types #{a.subtype} and #{b.subtype}"
+
+    false
+  end
+
+  def self.no_problem_so_far(a, b)
+    a.success && b.success
+  end
+
+  def self.any_success(a, b)
+    a.success || b.success
+  end
+end
+
+class ExtendedToken
+  attr_reader :type, :precedence, :left_associative, :value, :success, :subtype
+  attr_writer :success, :value, :subtype
+
+  def initialize(token)
+    @type = nil
+    @subtype = nil
+    @value = nil
+    @success = true
+    @precedence = 99999
+    @left_associative = false
+
+    if token.kind_of?(Hash)
+      fill_in_from_hash(token)
+    else
+      fill_in_from_token(token)
+    end
+  end
+
+  def inspect
+    if @subtype == :error
+      "<ERROR #{@value}>"
+    elsif @type == :open_paren
+      '<OPEN_PAREN>'
+    elsif @type == :close_paren
+      '<CLOSE_PAREN>'
+    elsif @type == :operator
+      "<OPERATOR #{@value} #{@precedence} #{@left_associative}>"
+    elsif @type == :operand
+      "<OPERAND #{@subtype} #{@value}>"
+    end
+  end
+
+  private
+
+  def fill_in_from_token(token)
+    case token.type
+    when :comparison, :boolean, :operator
+      @type = :operator
+      @value = token.value
+      @precedence = operator_precedence(token.value)
+      @left_associative = operator_associativity(token.value) == 'left'
+    when :open_paren, :close_paren
+      @type = token.type
+      @precedence = operator_precedence(token.value)
+    when :float, :integer, :true, :false, :null, :string, :query
+      @type = :operand
+      @subtype = token.type
+      @value = token.value
+    when :error
+      @type = :operand
+      @subtype = token.type
+      @value = token.value
+      @success = false
+    else
+      raise "Unknown token type [#{token.type}] from Tokenise"
+    end
+  end
+
+  def fill_in_from_hash(token)
+    token.each do |k, v|
+      case k
+      when :type
+        @type = v
+      when :subtype
+        @subtype = v
+      when :value
+        @value = v
+      when :success
+        @success = v
+      else
+        raise "Option #{k} => #{v} unknown key"
+      end
+    end
+  end
+
+  def operator_precedence(token_value)
+    case token_value
+    when '(', ')'
+      0
+    when 'neg' # Unary minus
+      14
+    when '^' # The exponential operator
+      13
+    when '*', '/'
+      12
+    when '+', '-'
+      11
+    when '<', '<=', '>', '>='
+      9
+    when '=', '!='
+      8
+    when '&&'
+      4
+    when '||'
+      3
+    else
+      raise "Precedence unknown for [#{token_value}]"
+    end
+  end
+
+  def operator_associativity(token_value)
+    case token_value
+    when '(', ')'
+      nil
+    when '^'
+      'right'
+    when '*', '/'
+      'left'
+    when '+', '-'
+      'left'
+    when '<', '<=', '>', '>='
+      'left'
+    when '=', '!='
+      'left'
+    when '&&'
+      'left'
+    when '||'
+      'left'
+    when 'neg' # Unary minus
+      'right'
+    else
+      raise "Associativity unknown for [#{token_value}]"
+    end
+  end
+end
+
+class Shunt
+  def self.process(tokens)
+    stack = []
+    queue = []
+
+    input = tokens.map { |token| ExtendedToken.new(token) }
+
+    while input.any?
+      token = input.shift
+
+      if token.type == :operand
+        queue << token
+      elsif token.type == :operator
+        while stack.any? && token.precedence <= stack.last.precedence && token.left_associative
+          queue << stack.pop
+        end
+
+        stack << token
+      elsif token.type == :open_paren
+        stack << token
+      elsif token.type == :close_paren
+        while stack.any? && stack.last.type != :open_paren
+          queue << stack.pop
+        end
+
+        stack.pop
+      else
+        raise "Do not know what to do with [#{token}]. Not an operator, operand, '(' or ')'"
+      end
+    end
+
+    while stack.any?
+      queue << stack.pop
+    end
+
+    queue
+  end
+end
+
+class Token
+  attr_reader :type, :string, :value
+  attr_writer :string, :value
+
+  def initialize(type, string)
+    @type = type
+    @string = string
+    @value = value_from_string(type, string)
+  end
+
+  def inspect
+    "{TOKEN #{@type} [#{@string}]}"
+  end
+
+  private
+
+  def value_from_string(type, string)
+    case type
+    when :integer
+      string.to_i
+    when :float
+      string.to_f
+    when :string
+      string[1..-2]
+    when :true
+      true
+    when :false
+      false
+    when :null
+      nil
+    else
+      string
+    end
+  end
+end
+
+class Tokenise
+  COMPARISONS = %w[= != >= > <= <]
+
+  OPERATORS = %w[- + * / ^]
+
+  BOOLEAN = %w[&& ||]
+
+  ORDERED = [
+    [:whitespace, :ws],
+    [:comparison, :comp],
+    [:boolean, :bool],
+    [:operator, :ops],
+    [:float, :float],
+    [:integer, :int],
+    [:true, :true],
+    [:false, :false],
+    [:null, :null],
+    [:string, :string_double],
+    [:string, :string_single],
+    [:open_paren, :open_paren],
+    [:close_paren, :close_paren],
+    [:query, :query],
+  ]
+
+  def self.process(text, raw = false)
+    l = []
+
+    loop do
+      not_matched = true
+
+      ORDERED.each do |(label, func)|
+        r = send(func, text)
+        next if r.nil?
+
+        l << Token.new(label, r.dup) unless label == :whitespace
+        text = text[r.size..]
+        not_matched = false
+        break
+      end
+
+      if not_matched
+        l << Token.new(:error, text)
+        break
+      end
+
+      break if text == ''
+    end
+
+    l = unary_minus(l) unless raw
+
+    l
+  end
+
+  private
+
+  def self.unary_minus(list)
+    l = []
+
+    while list.any?
+      token = list.shift
+
+      if token.type == :operator && token.value == '-'
+        if l.empty?
+          if list.first.type == :integer || list.first.type == :float
+            list[0] = Token.new(list.first.type, (-1 * list.first.value).to_s)
+          elsif list.first.type == :open_paren
+            l << Token.new(:operator, 'neg')
+          else
+            raise "Exception unary minus 1 #{l.last} #{token} #{list.first}"
+          end
+        else
+          if l.last.type == :integer || l.last.type == :float
+            l << token
+          elsif l.last.type == :operator && (list.first.type == :integer || list.first.type == :float)
+            list[0] = Token.new(list.first.type, (-1 * list.first.value).to_s)
+          elsif l.last.type == :close_paren
+            l << token
+          elsif l.last.type == :operator && list.first.type == :open_paren
+            l << Token.new(:operator, 'neg')
+          else
+            raise "Exception unary minus 2 #{l.last} #{token} #{list.first}"
+          end
+        end
+      else
+        l << token
+      end
+    end
+
+    l
+  end
+
+  def self.ws(text)
+    if text =~ /^(\s+)/
+      $1
+    else
+      nil
+    end
+  end
+
+  def self.ops(text)
+    OPERATORS.each do |o|
+      return o if text.start_with?(o)
+    end
+
+    nil
+  end
+
+  def self.comp(text)
+    COMPARISONS.each do |c|
+      return c if text.start_with?(c)
+    end
+
+    nil
+  end
+
+  def self.bool(text)
+    BOOLEAN.each do |b|
+      return b if text.start_with?(b)
+    end
+
+    nil
+  end
+
+  def self.query(text)
+    if text =~ /^([\.[a-zA-Z0-9_]+]+)/
+      $1
+    else
+      nil
+    end
+  end
+
+  def self.string_single(text)
+    return nil unless text.start_with?("'")
+
+    # We know the char at 0 is a '
+    (1...text.size).each do |i|
+      next unless text[i] == "'"
+      return text[0..i]
+    end
+
+    nil
+  end
+
+  def self.string_double(text)
+    return nil unless text.start_with?('"')
+
+    # We know the char at 0 is a "
+    (1...text.size).each do |i|
+      next unless text[i] == '"'
+      return text[0..i]
+    end
+
+    nil
+  end
+
+  def self.open_paren(text)
+    if text.start_with?('(')
+      '('
+    else
+      nil
+    end
+  end
+
+  def self.close_paren(text)
+    if text.start_with?(')')
+      ')'
+    else
+      nil
+    end
+  end
+
+  def self.int(text)
+    if text =~ /^(\d+)/
+      $1
+    else
+      nil
+    end
+  end
+
+  def self.float(text)
+    if text =~ /^(\d+\.\d+)/
+      $1
+    else
+      nil
+    end
+  end
+
+  def self.true(text)
+    return 'true' if text.downcase.start_with?('true')
+
+    nil
+  end
+
+  def self.false(text)
+    return 'false' if text.downcase.start_with?('false')
+
+    nil
+  end
+
+  def self.null(text)
+    return 'null' if text.downcase.start_with?('null')
+
+    nil
+  end
+end
+
+query = ARGV.shift
+
+a = Tokenise.process(query)
+b = Shunt.process(a)
+
+ARGF.each_with_index do |json, index|
+  data = JSON.parse(json).transform_keys(&:to_s)
+  c = QueryResolver.resolve(data, b)
+  success, value = Runner.run(c)
+  if success
+    if value == true
+      puts json
+    end
+  end
+rescue => e
+  # STDERR.puts "Line #{index+1} #{e.message}"
+  # e.backtrace.each { |line| puts line }
+  # p c
+  # exit
+end
