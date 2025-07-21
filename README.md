@@ -10,11 +10,20 @@ $ jselect '.level = "error"' output_8.txt
 
 This will parse the contents of `output_8.txt` and where the data is `{ ... "level":"error", ... }` it will output all the lines that have `"level":"error"`
 
+The input data is json where a single line contains a complete data structure. When the query is evaluated against it and returns `true` the input is output.
+
 ```bash
 $ jselect '.level = "error" || .payload.sequence_error = true' output_8.txt
 ```
 
 You get the idea. The system handles all the various JSON data types, `true`, `false`, `null`, strings, integers and floats. You cannot do queries with arrays yet, not quite worked out how that would actually work
+
+If you have long and complex queries put them in a file and call it with...
+
+```bash
+$ jselect @my_query.txt output_8.txt
+```
+
 
 ## Spreadsheet logic
 

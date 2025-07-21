@@ -683,7 +683,17 @@ class Tokenise
   end
 end
 
-query = ARGV.shift
+def load_query
+  query = ARGV.shift
+
+  if query.start_with?('@')
+    query = File.read(query[1..])
+  end
+
+  query
+end
+
+query = load_query
 
 a = Tokenise.process(query)
 b = Shunt.process(a)
