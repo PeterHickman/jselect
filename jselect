@@ -686,9 +686,7 @@ end
 def load_query
   query = ARGV.shift
 
-  if query.start_with?('@')
-    query = File.read(query[1..])
-  end
+  query = File.read(query[1..]) if query.start_with?('@')
 
   query
 end
@@ -700,13 +698,11 @@ b = Shunt.process(a)
 
 ARGF.each_with_index do |json, index|
   data = JSON.parse(json).transform_keys(&:to_s)
+
   c = QueryResolver.resolve(data, b)
   success, value = Runner.run(c)
-  if success
-    if value == true
-      puts json
-    end
-  end
+
+  puts json if success && value
 rescue => e
   # STDERR.puts "Line #{index+1} #{e.message}"
   # e.backtrace.each { |line| puts line }
