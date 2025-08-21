@@ -43,6 +43,20 @@ describe QueryResolver do
     end
   end
 
+  describe 'plain boolean ||' do
+    it 'matches nothing' do
+      test_eq('.level="error" || .level="debug"', { "level" => 'info' }, true, false)
+    end
+
+    it 'matches lhs' do
+      test_eq('.level="error" || .level="debug"', { "level" => 'error' }, true, true)
+    end
+
+    it 'matches rhs' do
+      test_eq('.level="error" || .level="debug"', { "level" => 'debug' }, true, true)
+    end
+  end
+
   describe 'boolean || succeeds if something succeeds (magical edge case)' do
     it 'passes because the rhs passes' do
       test_eq('.level = "error" || true', { }, true, true)
