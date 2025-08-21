@@ -58,6 +58,9 @@ describe QueryResolver do
   end
 
   describe 'boolean || succeeds if something succeeds (magical edge case)' do
+    ##
+    # It really takes 9 tests for this for complete coverage
+    ##
     it 'passes because the rhs passes' do
       test_eq('.level = "error" || true', { }, true, true)
     end
@@ -67,7 +70,7 @@ describe QueryResolver do
     end
 
     it 'fails because both fail' do
-      test_eq('.level = "error" || .level = "info"', { }, true, false)
+      test_eq('.level = "error" || .level = "info"', { }, false, nil)
     end
 
     it 'checks that it fails correctly' do
