@@ -197,14 +197,23 @@ class Runner
           # but the other succeeds and evaluates to true then this
           # can return true and if everything has failed return false
           if bool_types(f, s, [:true, :false, :error])
-            r = if f.success
-                  f.value
-                elsif s.success
-                  s.value
-                else
-                  false
-                end
-            stack << ExtendedToken.new(type: :operand, subtype: sym_of(r), value: r, success: true)
+            v = nil
+            x = false
+
+            if f.success
+              x = true
+
+              if s.success
+                v = f.value || s.value
+              else
+                v = f.value
+              end
+            elsif s.success
+              x = true
+              v = s.value
+            end
+
+            stack << ExtendedToken.new(type: :operand, subtype: sym_of(v), value: v, success: x)
           else
             stack << ExtendedToken.new(type: :operand, subtype: :error, value: nil, success: false)
           end
