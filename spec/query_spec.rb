@@ -58,23 +58,64 @@ describe QueryResolver do
   end
 
   describe 'boolean || succeeds if something succeeds (magical edge case)' do
-    ##
-    # It really takes 9 tests for this for complete coverage
-    ##
-    it 'passes because the rhs passes' do
-      test_eq('.level = "error" || true', { }, true, true)
+    describe 'lhs success true' do
+      describe 'rhs success true' do
+        it 'success true' do
+          test_eq('.level="error" || .other="smith"', { "level" => 'error', "other" => 'smith' }, true, true)
+        end
+      end
+
+      describe 'rhs success false' do
+        it 'success true' do
+          test_eq('.level="error" || .other="smith"', { "level" => 'error', "other" => 'notsmith' }, true, true)
+        end
+      end
+
+      describe 'rhs failed' do
+        it 'success true' do
+          test_eq('.level="error" || .other="smith"', { "level" => 'error' }, true, true)
+        end
+      end
     end
 
-    it 'fails because the rhs fails' do
-      test_eq('.level = "error" || false', { }, true, false)
+    describe 'lhs success false' do
+      describe 'rhs success true' do
+        it 'success true' do
+          test_eq('.level="error" || .other="smith"', { "level" => 'noterror', "other" => 'smith' }, true, true)
+        end
+      end
+
+      describe 'rhs success false' do
+        it 'success false' do
+          test_eq('.level="error" || .other="smith"', { "level" => 'noterror', "other" => 'notsmith' }, true, false)
+        end
+      end
+
+      describe 'rhs failed' do
+        it 'success false' do
+          test_eq('.level="error" || .other="smith"', { "level" => 'noterror' }, true, false)
+        end
+      end
     end
 
-    it 'fails because both fail' do
-      test_eq('.level = "error" || .level = "info"', { }, false, nil)
-    end
+    describe 'lhs failed' do
+      describe 'rhs success true' do
+        it 'success true' do
+          test_eq('.level="error" || .other="smith"', { "other" => 'smith' }, true, true)
+        end
+      end
 
-    it 'checks that it fails correctly' do
-      test_eq('"dummy" || 42', { }, false, nil)
+      describe 'rhs success false' do
+        it 'success false' do
+          test_eq('.level="error" || .other="smith"', { "other" => 'notsmith' }, true, false)
+        end
+      end
+
+      describe 'rhs failed' do
+        it 'success false' do
+          test_eq('.level="error" || .other="smith"', { }, false, nil)
+        end
+      end
     end
   end
 end
